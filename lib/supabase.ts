@@ -7,7 +7,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export interface Project {
-  id: string;
+  id: number;
   name: string;
   description: string;
   link: string;
@@ -18,46 +18,11 @@ export interface Project {
   created_at?: string;
 }
 
-// Mock data for development
-const mockProjects: Project[] = [
-  {
-    id: '1',
-    name: 'Example Project 1',
-    description: 'This is an example project for testing.',
-    link: 'https://example.com',
-    image: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzU1YWFmZiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjI0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBhbGlnbm1lbnQtYmFzZWxpbmU9Im1pZGRsZSIgZmlsbD0id2hpdGUiPkV4YW1wbGUgUHJvamVjdCAxPC90ZXh0Pjwvc3ZnPg==',
-    x: 20,
-    y: 10,
-    z: 15
-  },
-  {
-    id: '2',
-    name: 'Example Project 2',
-    description: 'Another example project for testing.',
-    link: 'https://example.org',
-    image: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iI2ZmNTU1NSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjI0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBhbGlnbm1lbnQtYmFzZWxpbmU9Im1pZGRsZSIgZmlsbD0id2hpdGUiPkV4YW1wbGUgUHJvamVjdCAyPC90ZXh0Pjwvc3ZnPg==',
-    x: -30,
-    y: 5,
-    z: 25
-  },
-  {
-    id: '3',
-    name: 'Example Project 3',
-    description: 'A third example project for testing.',
-    link: 'https://example.net',
-    image: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzU1ZmY3ZiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjI0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBhbGlnbm1lbnQtYmFzZWxpbmU9Im1pZGRsZSIgZmlsbD0id2hpdGUiPkV4YW1wbGUgUHJvamVjdCAzPC90ZXh0Pjwvc3ZnPg==',
-    x: 10,
-    y: -15,
-    z: -20
-  }
-];
-
 // Function to fetch all projects
 export async function fetchProjects(): Promise<Project[]> {
-  // Use mock data if no valid Supabase URL
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn('Using mock data. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local for real data.');
-    return mockProjects;
+    console.error('Supabase URL and Anon Key must be set in .env.local');
+    return [];
   }
   
   try {
@@ -68,37 +33,25 @@ export async function fetchProjects(): Promise<Project[]> {
       
     if (error) {
       console.error('Error fetching projects:', error);
-      return mockProjects; // Fallback to mock data on error
+      return [];
     }
     
-    return data || mockProjects;
+    return data || [];
   } catch (err) {
     console.error('Error connecting to Supabase:', err);
-    return mockProjects; // Fallback to mock data on error
+    return [];
   }
 }
 
 // Function to add a new project
 export async function addProject(project: Omit<Project, 'id' | 'created_at'>): Promise<Project | null> {
-  // Use mock data if no valid Supabase URL
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn('Using mock data. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local for real data.');
-    const newProject: Project = {
-      id: Date.now().toString(),
-      name: project.name,
-      description: project.description,
-      link: project.link,
-      image: project.image,
-      x: project.x,
-      y: project.y,
-      z: project.z,
-      created_at: new Date().toISOString()
-    };
-    mockProjects.push(newProject);
-    return newProject;
+    console.error('Supabase URL and Anon Key must be set in .env.local');
+    return null;
   }
   
   try {
+    // ไม่ต้องกำหนด ID เอง เพราะใช้ SERIAL ใน PostgreSQL แล้ว
     const { data, error } = await supabase
       .from('projects')
       .insert([project])
@@ -119,11 +72,11 @@ export async function addProject(project: Omit<Project, 'id' | 'created_at'>): P
 
 // Generate a random position in 3D space with minimum distance check
 export function generateRandomPosition(existingProjects: Project[]): { x: number, y: number, z: number } {
-  const MIN_DISTANCE = 10; // Minimum distance between stars
+  const MIN_DISTANCE = 20; // เพิ่มระยะห่างขั้นต่ำระหว่างดาว (เดิม 10)
   const MAX_ATTEMPTS = 50; // Maximum number of attempts to find a valid position
   
   // Range for random positions
-  const RANGE = 100;
+  const RANGE = 120; // เพิ่มขอบเขตพื้นที่ให้กว้างขึ้น (เดิม 100)
   
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     // Generate random position
@@ -168,8 +121,8 @@ export function generateRandomPosition(existingProjects: Project[]): { x: number
   // If we couldn't find a valid position after MAX_ATTEMPTS, 
   // generate a position further away to ensure no overlap
   return {
-    x: (Math.random() * 2 - 1) * RANGE * 2,
-    y: (Math.random() * 2 - 1) * RANGE * 2,
-    z: (Math.random() * 2 - 1) * RANGE * 2
+    x: (Math.random() * 2 - 1) * RANGE * 2.5,
+    y: (Math.random() * 2 - 1) * RANGE * 2.5,
+    z: (Math.random() * 2 - 1) * RANGE * 2.5
   };
 } 

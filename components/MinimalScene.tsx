@@ -6,7 +6,7 @@ import { Project } from '../lib/supabase';
 import * as THREE from 'three';
 
 // กำหนดค่าสูงสุดในการซูมออก (ระยะห่างสูงสุดจากจุดศูนย์กลาง)
-const MAX_ZOOM_DISTANCE = 200;
+const MAX_ZOOM_DISTANCE = 350;
 
 // กำหนด type สำหรับ keysPressed
 interface KeysPressed {
@@ -70,8 +70,11 @@ const ProjectStar: React.FC<{
 }> = ({ project, onClick, isHedera = false }) => {
   const mesh = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
-  // ใช้ texture จาก context
+  // ใช้ texture จาก context สำหรับดาว Hedera
   const hederaTexture = useHederaTexture();
+  // เตรียม texture loader สำหรับดาวอื่นๆ
+  const [texture, setTexture] = useState<THREE.Texture | null>(null);
+  const [textureLoading, setTextureLoading] = useState(false);
   
   // สุ่มสีสำหรับออร่านีออน
   const [glowColor] = useState(() => {
@@ -90,8 +93,58 @@ const ProjectStar: React.FC<{
     return neonColors[Math.floor(Math.random() * neonColors.length)];
   });
   
+  // โหลด texture จากรูปภาพของ project (ถ้ามี)
+  useEffect(() => {
+    if (!isHedera && project.image && !textureLoading && !texture) {
+      setTextureLoading(true);
+      
+      // ตรวจสอบว่ารูปภาพเป็น base64 หรือ URL
+      if (project.image.startsWith('data:image')) {
+        // สร้าง texture จาก base64
+        const loader = new THREE.TextureLoader();
+        const newTexture = loader.load(project.image, (loadedTexture) => {
+          try {
+            (loadedTexture as any).colorSpace = THREE.SRGBColorSpace;
+          } catch (e) {
+            try {
+              (loadedTexture as any).encoding = THREE.sRGBEncoding;
+            } catch (err) {
+              console.warn('Could not set texture encoding', err);
+            }
+          }
+          loadedTexture.anisotropy = 16;
+          setTexture(loadedTexture);
+          setTextureLoading(false);
+        }, undefined, () => {
+          console.error('Error loading texture from base64');
+          setTextureLoading(false);
+        });
+      } else {
+        // โหลดจาก URL
+        const loader = new THREE.TextureLoader();
+        const newTexture = loader.load(project.image, (loadedTexture) => {
+          try {
+            (loadedTexture as any).colorSpace = THREE.SRGBColorSpace;
+          } catch (e) {
+            try {
+              (loadedTexture as any).encoding = THREE.sRGBEncoding;
+            } catch (err) {
+              console.warn('Could not set texture encoding', err);
+            }
+          }
+          loadedTexture.anisotropy = 16;
+          setTexture(loadedTexture);
+          setTextureLoading(false);
+        }, undefined, () => {
+          console.error('Error loading texture from URL');
+          setTextureLoading(false);
+        });
+      }
+    }
+  }, [isHedera, project.image, texture, textureLoading]);
+  
   // เพิ่มขนาดของดาว Hedera ให้ใหญ่ขึ้น
-  const size = isHedera ? 6 : 1;
+  const size = isHedera ? 15 : 5;
   const color = isHedera ? '#00ff7f' : (hovered ? '#ff9000' : '#ffffff');
 
   // ทำให้ดาวหมุนรอบตัวเอง
@@ -105,8 +158,8 @@ const ProjectStar: React.FC<{
     <group>
       {/* ออร่านีออนรอบดาว */}
       <pointLight 
-        distance={isHedera ? 25 : 10} 
-        intensity={isHedera ? 0.5 : 0.8}
+        distance={isHedera ? 1 : 1} 
+        intensity={isHedera ? 0.4 : 0.5}
         color={glowColor}
         position={[project.x, project.y, project.z]}
       />
@@ -126,14 +179,23 @@ const ProjectStar: React.FC<{
             transparent={true}
             color={hederaTexture ? '#ffffff' : '#00ff7f'}
             emissive={glowColor}
-            emissiveIntensity={hederaTexture ? 0.1 : 0.8}
+            emissiveIntensity={hederaTexture ? 0.2 : 0.6}
+          />
+        ) : texture ? (
+          // ดาวอื่นๆ ที่มี texture
+          <meshStandardMaterial 
+            map={texture}
+            transparent={true}
+            color={color}
+            emissive={glowColor} 
+            emissiveIntensity={hovered ? 0.4 : 0.2}
           />
         ) : (
-          // ดาวอื่นๆ
+          // ดาวอื่นๆ ที่ไม่มี texture
           <meshStandardMaterial 
             color={color} 
             emissive={glowColor} 
-            emissiveIntensity={hovered ? 1 : 0.7} 
+            emissiveIntensity={hovered ? 0.8 : 0.5} 
           />
         )}
       </mesh>
@@ -144,7 +206,7 @@ const ProjectStar: React.FC<{
         <meshBasicMaterial 
           color={glowColor} 
           transparent={true} 
-          opacity={0.05} // ลดความทึบลงเพื่อให้เห็น texture ชัดขึ้น
+          opacity={0.08} // ลดความทึบลงเพื่อให้ออร่าจางลง
         />
       </mesh>
     </group>
@@ -214,11 +276,187 @@ const Camera: React.FC<{
   );
 };
 
+// Component สำหรับสร้างดาวพื้นหลัง
+const BackgroundStars: React.FC = () => {
+  const stars = useRef<THREE.Points>(null);
+  const rotationSpeed = 0.0001; // ความเร็วการหมุนพื้นหลัง (ช้ากว่ากาแล็กซี่หลัก)
+  
+  useEffect(() => {
+    if (stars.current) {
+      const geometry = new THREE.BufferGeometry();
+      const count = 3000;
+      const positions = new Float32Array(count * 3);
+      
+      for (let i = 0; i < count * 3; i += 3) {
+        positions[i] = (Math.random() - 0.5) * 500; // ขยายขนาดให้ใหญ่ขึ้น
+        positions[i + 1] = (Math.random() - 0.5) * 500;
+        positions[i + 2] = (Math.random() - 0.5) * 500;
+      }
+      
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      if (stars.current) {
+        stars.current.geometry = geometry;
+      }
+    }
+  }, []);
+  
+  // ทำให้พื้นหลังหมุนเล็กน้อย
+  useFrame(() => {
+    if (stars.current) {
+      stars.current.rotation.y += rotationSpeed;
+      stars.current.rotation.x += rotationSpeed / 2;
+    }
+  });
+  
+  return (
+    <points ref={stars}>
+      <bufferGeometry />
+      <pointsMaterial size={0.5} color="#ffffff" sizeAttenuation />
+    </points>
+  );
+};
+
+// Component สำหรับการควบคุมด้วยคีย์บอร์ด
+const KeyboardController: React.FC<{
+  initialPosition: [number, number, number];
+  onPositionChange: (position: THREE.Vector3) => void;
+  onMovementChange: (isMoving: boolean) => void;
+  onControlChange: () => void;
+  isFormOpen: boolean;
+}> = ({ initialPosition, onPositionChange, onMovementChange, onControlChange, isFormOpen }) => {
+  const { camera } = useThree();
+  const keysPressed = useRef<KeysPressed>({});
+  const moveRef = useRef(false);
+  
+  useEffect(() => {
+    // ถ้าฟอร์มเปิดอยู่ ให้เคลียร์ปุ่มที่กดทั้งหมด
+    if (isFormOpen) {
+      keysPressed.current = {};
+      moveRef.current = false;
+      onMovementChange(false);
+    }
+  }, [isFormOpen, onMovementChange]);
+  
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // ไม่รับ keyboard event ถ้าฟอร์มกำลังเปิดอยู่
+      if (isFormOpen) return;
+      
+      // ไม่รับ keyboard event ถ้ากำลังพิมพ์ข้อความอยู่ในกล่องข้อความหรือ textarea
+      if (
+        document.activeElement instanceof HTMLInputElement || 
+        document.activeElement instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+      
+      // เก็บทั้ง key และ keyCode/code เพื่อให้ทำงานได้กับทุกภาษา
+      keysPressed.current[e.key.toLowerCase()] = true;
+      keysPressed.current[e.code.toLowerCase()] = true;
+      
+      // ตรวจสอบการกด Space bar เพื่อรีเซ็ตกล้อง
+      if (e.key === ' ' || e.code === 'Space') {
+        camera.position.set(initialPosition[0], initialPosition[1], initialPosition[2]);
+        camera.lookAt(0, 0, 0);
+        onPositionChange(camera.position);
+        onControlChange();
+        return;
+      }
+      
+      // ตรวจสอบว่ามีการกดปุ่มเคลื่อนที่หรือไม่ (รองรับทั้ง WASD และปุ่มลูกศร)
+      const movementKeys = ['w', 'a', 's', 'd', 'keyw', 'keya', 'keys', 'keyd', 'arrowup', 'arrowleft', 'arrowdown', 'arrowright'];
+      const keyLower = e.key.toLowerCase();
+      const codeLower = e.code.toLowerCase();
+      
+      if ((movementKeys.includes(keyLower) || movementKeys.includes(codeLower)) && !moveRef.current) {
+        moveRef.current = true;
+        onMovementChange(true);
+      }
+    };
+    
+    const handleKeyUp = (e: KeyboardEvent) => {
+      // ไม่รับ keyboard event ถ้าฟอร์มกำลังเปิดอยู่
+      if (isFormOpen) return;
+      
+      // ลบทั้ง key และ keyCode/code
+      keysPressed.current[e.key.toLowerCase()] = false;
+      keysPressed.current[e.code.toLowerCase()] = false;
+      
+      // ตรวจสอบว่าปล่อยปุ่มเคลื่อนที่ทั้งหมดหรือไม่
+      const movementKeys = ['w', 'a', 's', 'd', 'keyw', 'keya', 'keys', 'keyd', 'arrowup', 'arrowleft', 'arrowdown', 'arrowright'];
+      
+      // ตรวจสอบว่ายังมีปุ่มอื่นถูกกดอยู่หรือไม่
+      const anyKeyPressed = movementKeys.some(key => keysPressed.current[key]);
+      if (!anyKeyPressed && moveRef.current) {
+        moveRef.current = false;
+        onMovementChange(false);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [camera, onPositionChange, onMovementChange, onControlChange, initialPosition, isFormOpen]);
+  
+  useFrame(() => {
+    // ถ้าฟอร์มเปิดอยู่ ไม่ต้องทำอะไร
+    if (isFormOpen) return;
+    
+    const moveSpeed = 1;
+    const direction = new THREE.Vector3(0, 0, 0);
+    
+    // รองรับทั้ง key และ code (keyboard event) เพื่อทำงานกับทุกภาษา
+    // WASD
+    if (keysPressed.current['w'] || keysPressed.current['keyw'] || keysPressed.current['arrowup']) {
+      direction.z -= moveSpeed;
+    }
+    if (keysPressed.current['s'] || keysPressed.current['keys'] || keysPressed.current['arrowdown']) {
+      direction.z += moveSpeed;
+    }
+    if (keysPressed.current['a'] || keysPressed.current['keya'] || keysPressed.current['arrowleft']) {
+      direction.x -= moveSpeed;
+    }
+    if (keysPressed.current['d'] || keysPressed.current['keyd'] || keysPressed.current['arrowright']) {
+      direction.x += moveSpeed;
+    }
+    
+    if (direction.length() > 0) {
+      // แปลงทิศทางการเคลื่อนที่ให้เข้ากับมุมกล้อง
+      const movingDirection = direction.clone().applyQuaternion(camera.quaternion);
+      
+      // คำนวณตำแหน่งใหม่หลังการเคลื่อนที่
+      const newPosition = camera.position.clone().add(movingDirection);
+      
+      // ตรวจสอบระยะห่างหลังการเคลื่อนที่
+      const newDistance = newPosition.length();
+      
+      // ถ้าระยะห่างใหม่เกิน MAX_ZOOM_DISTANCE แสดงว่ากำลังเคลื่อนที่ออกนอกขอบเขต
+      if (newDistance > MAX_ZOOM_DISTANCE) {
+        // ปรับตำแหน่งให้อยู่บนเส้นขอบของขอบเขตที่กำหนด
+        const direction = newPosition.clone().normalize();
+        camera.position.copy(direction.multiplyScalar(MAX_ZOOM_DISTANCE));
+      } else {
+        // ถ้าไม่เกินขีดจำกัด ให้เคลื่อนที่ได้ตามปกติ
+        camera.position.add(movingDirection);
+      }
+      
+      onPositionChange(camera.position);
+    }
+  });
+  
+  return null;
+};
+
 // Custom Orbit Controls implementation (instead of using drei)
 const CustomOrbitControls: React.FC<{
   onControlsChange: () => void;
   isWASDActive: boolean;
-}> = ({ onControlsChange, isWASDActive }) => {
+  enabled: boolean;
+}> = ({ onControlsChange, isWASDActive, enabled }) => {
   const { camera, gl } = useThree();
   const isDragging = useRef(false);
   const previousTouch = useRef<{ x: number; y: number } | null>(null);
@@ -231,9 +469,9 @@ const CustomOrbitControls: React.FC<{
 
     // Mouse events for rotation
     const handleMouseDown = (e: MouseEvent) => {
-      // ถ้ากำลังใช้ WASD อยู่ให้ไม่ทำงาน
-      if (isWASDActive) return;
-      
+      // ถ้า enabled เป็น false หรือกำลังใช้ WASD อยู่ ให้ไม่ทำงาน
+      if (!enabled || isWASDActive) return;
+
       if (e.button === 0) { // Left mouse button
         isDragging.current = true;
         onControlsChange();
@@ -245,8 +483,8 @@ const CustomOrbitControls: React.FC<{
     };
     
     const handleMouseMove = (e: MouseEvent) => {
-      // ถ้ากำลังใช้ WASD อยู่ให้ไม่ทำงาน
-      if (isWASDActive) return;
+      // ถ้า enabled เป็น false หรือกำลังใช้ WASD อยู่ ให้ไม่ทำงาน
+      if (!enabled || isWASDActive) return;
       
       if (!isDragging.current) return;
       
@@ -261,8 +499,37 @@ const CustomOrbitControls: React.FC<{
       camera.quaternion.setFromEuler(euler);
     };
     
+    // Right click + drag for panning
+    const handleMouseMoveWithShift = (e: MouseEvent) => {
+      // ถ้า enabled เป็น false หรือกำลังใช้ WASD อยู่ ให้ไม่ทำงาน
+      if (!enabled || isWASDActive) return;
+      
+      if (e.buttons !== 2) return; // Only right mouse button
+      
+      // Pan camera based on mouse movement
+      const panSpeed = 0.1;
+      const right = new THREE.Vector3();
+      const up = new THREE.Vector3();
+      
+      // Extract right and up vectors from camera matrix
+      camera.matrix.extractBasis(right, up, new THREE.Vector3());
+      
+      // Calculate pan direction
+      right.multiplyScalar(-e.movementX * panSpeed);
+      up.multiplyScalar(e.movementY * panSpeed);
+      
+      // Apply pan
+      camera.position.add(right);
+      camera.position.add(up);
+      
+      onControlsChange();
+    };
+    
     // Mouse wheel for zoom
     const handleWheel = (e: WheelEvent) => {
+      // ถ้า enabled เป็น false หรือกำลังใช้ WASD อยู่ ให้ไม่ทำงาน
+      if (!enabled || isWASDActive) return;
+      
       e.preventDefault();
       
       // ตรวจสอบทิศทางการซูม (deltaY > 0 คือซูมออก, deltaY < 0 คือซูมเข้า)
@@ -275,6 +542,7 @@ const CustomOrbitControls: React.FC<{
       }
       
       // คำนวณระยะทางที่จะเปลี่ยนแปลง
+      const zoomSpeed = 0.05;
       const zoomDelta = camera.position.length() * zoomSpeed * (isZoomingOut ? 1 : -1);
       
       // คำนวณตำแหน่งกล้องใหม่
@@ -301,28 +569,10 @@ const CustomOrbitControls: React.FC<{
       onControlsChange();
     };
     
-    // Panning with shift + mouse drag
-    const handleMouseMoveWithShift = (e: MouseEvent) => {
-      // ถ้ากำลังใช้ WASD อยู่ให้ไม่ทำงาน
-      if (isWASDActive) return;
-      
-      if (!isDragging.current || !e.shiftKey) return;
-      
-      // Calculate pan amount based on mouse movement
-      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-      const up = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
-      
-      // Pan camera
-      camera.position.addScaledVector(right, -e.movementX * panSpeed * 0.05);
-      camera.position.addScaledVector(up, e.movementY * panSpeed * 0.05);
-      
-      onControlsChange();
-    };
-    
     // Touch events for mobile
     const handleTouchStart = (e: TouchEvent) => {
-      // ถ้ากำลังใช้ WASD อยู่ให้ไม่ทำงาน
-      if (isWASDActive) return;
+      // ถ้า enabled เป็น false หรือกำลังใช้ WASD อยู่ ให้ไม่ทำงาน
+      if (!enabled || isWASDActive) return;
       
       if (e.touches.length === 1) {
         isDragging.current = true;
@@ -340,8 +590,8 @@ const CustomOrbitControls: React.FC<{
     };
     
     const handleTouchMove = (e: TouchEvent) => {
-      // ถ้ากำลังใช้ WASD อยู่ให้ไม่ทำงาน
-      if (isWASDActive) return;
+      // ถ้า enabled เป็น false หรือกำลังใช้ WASD อยู่ ให้ไม่ทำงาน
+      if (!enabled || isWASDActive) return;
       
       if (!isDragging.current || !previousTouch.current) return;
       
@@ -406,187 +656,9 @@ const CustomOrbitControls: React.FC<{
       window.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('touchmove', handleTouchMove);
     };
-  }, [camera, gl, onControlsChange, isWASDActive]);
+  }, [camera, gl, onControlsChange, isWASDActive, enabled]);
   
   return null;
-};
-
-// Component for handling keyboard controls and camera reset
-const KeyboardController: React.FC<{
-  initialPosition: [number, number, number];
-  onPositionChange: (position: THREE.Vector3) => void;
-  onMovementChange: (isMoving: boolean) => void;
-  onControlChange: () => void;
-}> = ({ initialPosition, onPositionChange, onMovementChange, onControlChange }) => {
-  const { camera } = useThree();
-  const keysPressed = useRef<KeysPressed>({});
-  const isMoving = useRef(false);
-
-  // ฟังก์ชันรีเซ็ตกล้องกลับไปยังตำแหน่งเริ่มต้น
-  const resetCamera = () => {
-    // กำหนดตำแหน่งกล้องให้กลับไปจุดเริ่มต้น
-    camera.position.set(initialPosition[0], initialPosition[1], initialPosition[2]);
-    
-    // หันกล้องกลับไปมองที่จุดศูนย์กลาง
-    camera.lookAt(0, 0, 0);
-    
-    // อัพเดทค่าสถานะ
-    onPositionChange(camera.position);
-    
-    // แจ้งว่ามีการเปลี่ยนแปลงคอนโทรล
-    onControlChange();
-  };
-  
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // เก็บทั้ง key และ keyCode/code เพื่อให้ทำงานได้กับทุกภาษา
-      keysPressed.current[e.key.toLowerCase()] = true;
-      keysPressed.current[e.code.toLowerCase()] = true;
-      
-      // ตรวจสอบการกด Space bar เพื่อรีเซ็ตกล้อง
-      if (e.key === ' ' || e.code === 'Space') {
-        resetCamera();
-        return;
-      }
-      
-      // ตรวจสอบว่ามีการกดปุ่มเคลื่อนที่หรือไม่ (รองรับทั้ง WASD และปุ่มลูกศร)
-      const movementKeys = ['w', 'a', 's', 'd', 'keyw', 'keya', 'keys', 'keyd', 'arrowup', 'arrowleft', 'arrowdown', 'arrowright'];
-      const keyLower = e.key.toLowerCase();
-      const codeLower = e.code.toLowerCase();
-      
-      if ((movementKeys.includes(keyLower) || movementKeys.includes(codeLower)) && !isMoving.current) {
-        isMoving.current = true;
-        onMovementChange(true);
-      }
-    };
-    
-    const handleKeyUp = (e: KeyboardEvent) => {
-      // ลบทั้ง key และ keyCode/code
-      keysPressed.current[e.key.toLowerCase()] = false;
-      keysPressed.current[e.code.toLowerCase()] = false;
-      
-      // ตรวจสอบว่าปล่อยปุ่มเคลื่อนที่ทั้งหมดหรือไม่
-      const movementKeys = ['w', 'a', 's', 'd', 'keyw', 'keya', 'keys', 'keyd', 'arrowup', 'arrowleft', 'arrowdown', 'arrowright'];
-      const keyLower = e.key.toLowerCase();
-      const codeLower = e.code.toLowerCase();
-      
-      if (movementKeys.includes(keyLower) || movementKeys.includes(codeLower)) {
-        // ตรวจสอบว่ายังมีปุ่มอื่นถูกกดอยู่หรือไม่
-        const anyKeyPressed = movementKeys.some(key => keysPressed.current[key]);
-        if (!anyKeyPressed && isMoving.current) {
-          isMoving.current = false;
-          onMovementChange(false);
-        }
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [camera, onPositionChange, onMovementChange, onControlChange, initialPosition]);
-  
-  useFrame(() => {
-    const moveSpeed = 1;
-    const direction = new THREE.Vector3(0, 0, 0);
-    
-    // รองรับทั้ง key และ code (keyboard event) เพื่อทำงานกับทุกภาษา
-    // WASD
-    if (keysPressed.current['w'] || keysPressed.current['keyw'] || keysPressed.current['arrowup']) {
-      direction.z -= moveSpeed;
-    }
-    if (keysPressed.current['s'] || keysPressed.current['keys'] || keysPressed.current['arrowdown']) {
-      direction.z += moveSpeed;
-    }
-    if (keysPressed.current['a'] || keysPressed.current['keya'] || keysPressed.current['arrowleft']) {
-      direction.x -= moveSpeed;
-    }
-    if (keysPressed.current['d'] || keysPressed.current['keyd'] || keysPressed.current['arrowright']) {
-      direction.x += moveSpeed;
-    }
-    
-    if (direction.length() > 0) {
-      // ตรวจสอบการเคลื่อนที่ถอยหลัง (ซูมออก) ว่าจะเกินขีดจำกัดหรือไม่
-      const movingDirection = direction.clone().applyQuaternion(camera.quaternion);
-      const isMovingAway = movingDirection.z > 0;
-      
-      if (isMovingAway) {
-        // ตรวจสอบระยะห่างหลังการเคลื่อนที่
-        const newPosition = camera.position.clone().add(movingDirection);
-        const newDistance = newPosition.length();
-        
-        if (newDistance > MAX_ZOOM_DISTANCE) {
-          // ถ้าเกินขีดจำกัด ให้ไม่เคลื่อนที่ในแนว z หรือปรับให้อยู่ในขีดจำกัด
-          const currentDistance = camera.position.length();
-          const remainingDistance = MAX_ZOOM_DISTANCE - currentDistance;
-          
-          if (remainingDistance <= 0) {
-            // ถ้าอยู่ที่ขีดจำกัดแล้ว ให้เคลื่อนที่เฉพาะแนวระนาบ x-y
-            movingDirection.z = 0;
-            camera.position.add(movingDirection);
-          } else {
-            // ถ้ายังเคลื่อนที่ได้อีกนิดหน่อย ให้เคลื่อนที่เท่าที่เหลือ
-            const ratio = remainingDistance / movingDirection.length();
-            camera.position.add(movingDirection.multiplyScalar(ratio));
-          }
-        } else {
-          // ถ้าไม่เกินขีดจำกัด ให้เคลื่อนที่ได้ตามปกติ
-          camera.position.add(movingDirection);
-        }
-      } else {
-        // ถ้าไม่ใช่การถอยหลัง ให้เคลื่อนที่ได้ตามปกติ
-        direction.applyQuaternion(camera.quaternion);
-        camera.position.add(direction);
-      }
-      
-      onPositionChange(camera.position);
-    }
-  });
-  
-  return null;
-};
-
-// Create simple background stars manually
-const BackgroundStars: React.FC = () => {
-  const stars = useRef<THREE.Points>(null);
-  const rotationSpeed = 0.0001; // ความเร็วการหมุนพื้นหลัง (ช้ากว่ากาแล็กซี่หลัก)
-  
-  useEffect(() => {
-    if (stars.current) {
-      const geometry = new THREE.BufferGeometry();
-      const count = 3000;
-      const positions = new Float32Array(count * 3);
-      
-      for (let i = 0; i < count * 3; i += 3) {
-        positions[i] = (Math.random() - 0.5) * 500; // ขยายขนาดให้ใหญ่ขึ้น
-        positions[i + 1] = (Math.random() - 0.5) * 500;
-        positions[i + 2] = (Math.random() - 0.5) * 500;
-      }
-      
-      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      if (stars.current) {
-        stars.current.geometry = geometry;
-      }
-    }
-  }, []);
-  
-  // ทำให้พื้นหลังหมุนเล็กน้อย
-  useFrame(() => {
-    if (stars.current) {
-      stars.current.rotation.y += rotationSpeed;
-      stars.current.rotation.x += rotationSpeed / 2;
-    }
-  });
-  
-  return (
-    <points ref={stars}>
-      <bufferGeometry />
-      <pointsMaterial size={0.5} color="#ffffff" sizeAttenuation />
-    </points>
-  );
 };
 
 // Main component for the 3D scene
@@ -594,30 +666,22 @@ interface MinimalSceneProps {
   projects: Project[];
   onProjectClick: (project: Project) => void;
   showUI?: boolean; // เพิ่ม prop เพื่อควบคุมการแสดง UI
+  hederaStar: Project; // เพิ่ม prop สำหรับดาว Hedera
+  isFormOpen?: boolean; // เพิ่ม prop เพื่อรับสถานะว่าฟอร์มเปิดอยู่หรือไม่
 }
 
 const MinimalScene: React.FC<MinimalSceneProps> = ({ 
   projects, 
   onProjectClick,
-  showUI = false // ค่าเริ่มต้นเป็น false เพื่อไม่แสดง UI โดยอัตโนมัติ 
+  showUI = false, // ค่าเริ่มต้นเป็น false เพื่อไม่แสดง UI โดยอัตโนมัติ
+  hederaStar,
+  isFormOpen = false // ค่าเริ่มต้นเป็น false
 }) => {
   const [cameraPosition, setCameraPosition] = useState<[number, number, number]>([0, 0, 50]);
   const initialCameraPosition: [number, number, number] = [0, 0, 50]; // ตำแหน่งกล้องเริ่มต้น
   const [isUserMoving, setIsUserMoving] = useState(false);
   const [isOrbitControlActive, setIsOrbitControlActive] = useState(false);
   const [controlMode, setControlMode] = useState<'mouse' | 'keyboard'>('mouse');
-  
-  // Create a Hedera star at center
-  const hederaStar: Project = {
-    id: 'hedera',
-    name: 'Hedera',
-    description: 'The central Hedera network',
-    link: 'https://hedera.com',
-    image: '',
-    x: 0,
-    y: 0,
-    z: 0
-  };
   
   const handleCameraUpdate = (position: THREE.Vector3) => {
     setCameraPosition([position.x, position.y, position.z]);
@@ -645,53 +709,44 @@ const MinimalScene: React.FC<MinimalSceneProps> = ({
   };
   
   return (
-    <div className="w-full h-screen relative">
-      <Canvas>
-        <Suspense fallback={null}>
-          <TexturePreloader>
-            <Camera position={cameraPosition} />
-            
-            {/* ใช้ CustomOrbitControls แทน OrbitControls จาก drei */}
-            <CustomOrbitControls 
-              onControlsChange={handleControlsChange} 
-              isWASDActive={controlMode === 'keyboard'}
-            />
-            
-            {/* ใช้ KeyboardController แทน CameraController เดิม */}
-            <KeyboardController 
-              initialPosition={initialCameraPosition}
-              onPositionChange={handleCameraUpdate}
-              onMovementChange={handleMovementChange}
-              onControlChange={handleControlsChange}
-            />
-            
-            {/* Ambient light for basic visibility */}
-            <ambientLight intensity={0.2} />
-            
-            {/* Directional light to create some shadows and depth */}
-            <directionalLight position={[10, 10, 10]} intensity={0.5} />
-            
-            {/* Background stars */}
-            <BackgroundStars />
-            
-            {/* Rotating Galaxy */}
-            <RotatingGalaxy 
+    <div className="w-full h-screen">
+      <Canvas camera={{ position: cameraPosition }}>
+        <ambientLight intensity={0.1} />
+        <pointLight position={[10, 10, 10]} />
+        
+        <TexturePreloader>
+          <Suspense fallback={null}>
+            <RotatingGalaxy
               projects={projects}
               onProjectClick={onProjectClick}
               hederaStar={hederaStar}
-              pauseRotation={isUserMoving || isOrbitControlActive} // หยุดการหมุนเมื่อใช้ controls ใดๆ
+              pauseRotation={isUserMoving || controlMode === 'keyboard'}
             />
-          </TexturePreloader>
-        </Suspense>
+          </Suspense>
+        </TexturePreloader>
+        
+        <BackgroundStars />
+        
+        <CustomOrbitControls
+          onControlsChange={handleControlsChange}
+          isWASDActive={controlMode === 'keyboard'}
+          enabled={!isFormOpen}
+        />
+        
+        <Camera position={cameraPosition} />
+        
+        <KeyboardController
+          initialPosition={cameraPosition}
+          onPositionChange={handleCameraUpdate}
+          onMovementChange={handleMovementChange}
+          onControlChange={handleControlsChange}
+          isFormOpen={isFormOpen}
+        />
       </Canvas>
       
-      {/* UI Elements - แสดงเฉพาะเมื่อ showUI เป็น true เท่านั้น */}
-      {showUI && (
-        <div id="galaxy-controls" className="absolute bottom-4 left-4">
-          <div className="bg-black bg-opacity-60 rounded p-2 text-white text-opacity-90">
-            <p className="text-sm">Use W, A, S, D or arrows to navigate | Mouse wheel to zoom | Drag to rotate</p>
-            <p className="text-sm mt-1">Press Space bar to reset to center</p>
-          </div>
+      {showUI && !isUserMoving && (
+        <div className="absolute bottom-4 left-4 text-white text-opacity-70 text-sm">
+          <p>WASD: Move | Mouse Drag: Rotate | Scroll: Zoom</p>
         </div>
       )}
     </div>

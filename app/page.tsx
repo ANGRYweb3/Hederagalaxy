@@ -7,6 +7,19 @@ import ProjectModal from '../components/ProjectModal';
 import AddProjectForm from '../components/AddProjectForm';
 import { fetchProjects, Project } from '../lib/supabase';
 
+// ดาว Hedera ที่จะอยู่ตรงจุดศูนย์กลาง
+const HEDERA_STAR: Project = {
+  id: 0, // เริ่มที่ 0 ให้ Hedera เป็นหลัก ส่วนโปรเจคที่เพิ่มจะเริ่มที่ 1
+  name: 'Hedera',
+  description: 'Hedera is a decentralized public network where developers can build secure, fair applications with near real-time consensus.',
+  link: 'https://hedera.com',
+  image: '/hbar.png', // ใช้ texture จากไฟล์ภาพที่มีอยู่แล้ว
+  x: 0,
+  y: 0,
+  z: 0,
+  created_at: new Date().toISOString()
+};
+
 export default function Home() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -54,6 +67,8 @@ export default function Home() {
             projects={projects} 
             onProjectClick={handleProjectClick} 
             showUI={true}
+            hederaStar={HEDERA_STAR}
+            isFormOpen={showAddForm}
           />
           
           {selectedProject && (

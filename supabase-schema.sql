@@ -1,6 +1,9 @@
+-- สร้าง sequence สำหรับ auto-increment ID
+CREATE SEQUENCE IF NOT EXISTS projects_id_seq START 1;
+
 -- Create the projects table
 CREATE TABLE projects (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id INTEGER PRIMARY KEY DEFAULT nextval('projects_id_seq'),
   name TEXT NOT NULL,
   description TEXT NOT NULL,
   link TEXT NOT NULL,

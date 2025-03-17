@@ -136,7 +136,7 @@ const ThreeScene: React.FC<ThreeSceneProps> = ({ projects, onProjectClick }) => 
   
   // Create a Hedera star at center
   const hederaStar: Project = {
-    id: 'hedera',
+    id: 0,
     name: 'Hedera',
     description: 'The central Hedera network',
     link: 'https://hedera.com',
