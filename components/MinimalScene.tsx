@@ -780,7 +780,7 @@ const MinimalScene: React.FC<MinimalSceneProps> = ({
       
       {showUI && (
         <div className="absolute bottom-4 left-4 text-white text-opacity-70 text-sm">
-          <p>WASD: Move | Click + Mouse: Rotate | Right Click: Pan | Scroll: Zoom</p>
+          <p>WASD: Move | Click + Mouse: Rotate | Right Click: Pan | Scroll: Zoom | Space: Return to center</p>
           {isFollowingMouse && (
             <p className="text-green-400">Mouse Follow Mode: Enabled (Click to disable) - Mouse will automatically rotate view</p>
           )}
