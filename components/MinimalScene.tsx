@@ -464,53 +464,70 @@ const CustomOrbitControls: React.FC<{
   onControlsChange: () => void;
   isWASDActive: boolean;
   enabled: boolean;
-}> = ({ onControlsChange, isWASDActive, enabled }) => {
+  onFollowModeChange?: (isFollowing: boolean) => void;
+}> = ({ onControlsChange, isWASDActive, enabled, onFollowModeChange }) => {
   const { camera, gl } = useThree();
   const isDragging = useRef(false);
   const previousTouch = useRef<{ x: number; y: number } | null>(null);
   const rotationSpeed = 0.005;
   const zoomSpeed = 0.1;
   const panSpeed = 0.5;
+  const [followMouse, setFollowMouse] = useState(false); // เพิ่ม state สำหรับติดตามโหมด follow mouse
+  
+  // แจ้งการเปลี่ยนแปลงโหมด follow mouse กลับไปยัง parent component
+  useEffect(() => {
+    if (onFollowModeChange) {
+      onFollowModeChange(followMouse);
+    }
+  }, [followMouse, onFollowModeChange]);
   
   useEffect(() => {
     const canvas = gl.domElement;
 
     // Mouse events for rotation
     const handleMouseDown = (e: MouseEvent) => {
-      // ถ้า enabled เป็น false หรือกำลังใช้ WASD อยู่ ให้ไม่ทำงาน
-      if (!enabled || isWASDActive) return;
+      // ถ้า enabled เป็น false ให้ไม่ทำงาน (แต่ไม่ตรวจสอบ isWASDActive แล้ว)
+      if (!enabled) return;
 
       if (e.button === 0) { // Left mouse button
-        isDragging.current = true;
-        onControlsChange();
+        if (followMouse) {
+          // ถ้ากำลังอยู่ในโหมด follow mouse อยู่แล้ว การคลิกจะเป็นการปิดโหมดนี้
+          setFollowMouse(false);
+        } else {
+          // ถ้ายังไม่ได้อยู่ในโหมด follow mouse ให้เปิดโหมดนี้
+          setFollowMouse(true);
+          onControlsChange();
+        }
       }
     };
     
     const handleMouseUp = () => {
+      // ไม่ต้องปิด followMouse แล้วเพราะจะปิดเมื่อมีการคลิกซ้ำเท่านั้น
       isDragging.current = false;
     };
     
     const handleMouseMove = (e: MouseEvent) => {
-      // ถ้า enabled เป็น false หรือกำลังใช้ WASD อยู่ ให้ไม่ทำงาน
-      if (!enabled || isWASDActive) return;
+      // ถ้า enabled เป็น false ให้ไม่ทำงาน (แต่ไม่ตรวจสอบ isWASDActive แล้ว)
+      if (!enabled) return;
       
-      if (!isDragging.current) return;
-      
-      // Rotate camera based on mouse movement
-      camera.rotateY(-e.movementX * rotationSpeed);
-      camera.rotateX(-e.movementY * rotationSpeed);
-      
-      // Keep the camera level
-      const euler = new THREE.Euler(0, 0, 0, 'YXZ');
-      euler.setFromQuaternion(camera.quaternion);
-      euler.z = 0;
-      camera.quaternion.setFromEuler(euler);
+      // ตรวจสอบว่าอยู่ในโหมด follow mouse หรือกำลังลากเมาส์อยู่
+      if (followMouse || isDragging.current) {
+        // Rotate camera based on mouse movement
+        camera.rotateY(-e.movementX * rotationSpeed);
+        camera.rotateX(-e.movementY * rotationSpeed);
+        
+        // Keep the camera level
+        const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+        euler.setFromQuaternion(camera.quaternion);
+        euler.z = 0;
+        camera.quaternion.setFromEuler(euler);
+      }
     };
     
     // Right click + drag for panning
     const handleMouseMoveWithShift = (e: MouseEvent) => {
-      // ถ้า enabled เป็น false หรือกำลังใช้ WASD อยู่ ให้ไม่ทำงาน
-      if (!enabled || isWASDActive) return;
+      // ถ้า enabled เป็น false ให้ไม่ทำงาน (แต่ไม่ตรวจสอบ isWASDActive แล้ว)
+      if (!enabled) return;
       
       if (e.buttons !== 2) return; // Only right mouse button
       
@@ -535,8 +552,8 @@ const CustomOrbitControls: React.FC<{
     
     // Mouse wheel for zoom
     const handleWheel = (e: WheelEvent) => {
-      // ถ้า enabled เป็น false หรือกำลังใช้ WASD อยู่ ให้ไม่ทำงาน
-      if (!enabled || isWASDActive) return;
+      // ถ้า enabled เป็น false ให้ไม่ทำงาน (แต่ไม่ตรวจสอบ isWASDActive แล้ว)
+      if (!enabled) return;
       
       e.preventDefault();
       
@@ -579,8 +596,8 @@ const CustomOrbitControls: React.FC<{
     
     // Touch events for mobile
     const handleTouchStart = (e: TouchEvent) => {
-      // ถ้า enabled เป็น false หรือกำลังใช้ WASD อยู่ ให้ไม่ทำงาน
-      if (!enabled || isWASDActive) return;
+      // ถ้า enabled เป็น false ให้ไม่ทำงาน (แต่ไม่ตรวจสอบ isWASDActive แล้ว)
+      if (!enabled) return;
       
       if (e.touches.length === 1) {
         isDragging.current = true;
@@ -598,8 +615,8 @@ const CustomOrbitControls: React.FC<{
     };
     
     const handleTouchMove = (e: TouchEvent) => {
-      // ถ้า enabled เป็น false หรือกำลังใช้ WASD อยู่ ให้ไม่ทำงาน
-      if (!enabled || isWASDActive) return;
+      // ถ้า enabled เป็น false ให้ไม่ทำงาน (แต่ไม่ตรวจสอบ isWASDActive แล้ว)
+      if (!enabled) return;
       
       if (!isDragging.current || !previousTouch.current) return;
       
@@ -664,7 +681,7 @@ const CustomOrbitControls: React.FC<{
       window.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('touchmove', handleTouchMove);
     };
-  }, [camera, gl, onControlsChange, isWASDActive, enabled]);
+  }, [camera, gl, onControlsChange, enabled]);
   
   return null;
 };
@@ -690,6 +707,7 @@ const MinimalScene: React.FC<MinimalSceneProps> = ({
   const [isUserMoving, setIsUserMoving] = useState(false);
   const [isOrbitControlActive, setIsOrbitControlActive] = useState(false);
   const [controlMode, setControlMode] = useState<'mouse' | 'keyboard'>('mouse');
+  const [isFollowingMouse, setIsFollowingMouse] = useState(false);
   
   const handleCameraUpdate = (position: THREE.Vector3) => {
     setCameraPosition([position.x, position.y, position.z]);
@@ -698,13 +716,16 @@ const MinimalScene: React.FC<MinimalSceneProps> = ({
   const handleMovementChange = (isMoving: boolean) => {
     setIsUserMoving(isMoving);
     
-    // ถ้ามีการใช้ WASD ให้เปลี่ยนโหมดเป็น keyboard
+    // ไม่ต้องเปลี่ยนโหมดเมื่อใช้งาน WASD แล้ว เพื่อให้ใช้เมาส์ได้พร้อมกัน
+    // เอาออกเพื่อให้ใช้ WASD และเมาส์พร้อมกันได้
+    /* 
     if (isMoving) {
       setControlMode('keyboard');
     } else {
       // หลังจากหยุดเคลื่อนที่ 1 วินาที ให้กลับไปใช้เมาส์ได้
       setTimeout(() => setControlMode('mouse'), 1000);
     }
+    */
   };
   
   const handleControlsChange = () => {
@@ -714,6 +735,10 @@ const MinimalScene: React.FC<MinimalSceneProps> = ({
     setControlMode('mouse');
     // รีเซ็ตสถานะเมื่อไม่มีการเคลื่อนไหวเป็นเวลา 2 วินาที
     setTimeout(() => setIsOrbitControlActive(false), 2000);
+  };
+  
+  const handleFollowModeChange = (isFollowing: boolean) => {
+    setIsFollowingMouse(isFollowing);
   };
   
   return (
@@ -728,7 +753,7 @@ const MinimalScene: React.FC<MinimalSceneProps> = ({
               projects={projects}
               onProjectClick={onProjectClick}
               hederaStar={hederaStar}
-              pauseRotation={isUserMoving || controlMode === 'keyboard'}
+              pauseRotation={false} // ไม่ต้องหยุดการหมุนของกาแล็กซี่ไม่ว่าจะอยู่ในโหมดไหน
             />
           </Suspense>
         </TexturePreloader>
@@ -737,8 +762,9 @@ const MinimalScene: React.FC<MinimalSceneProps> = ({
         
         <CustomOrbitControls
           onControlsChange={handleControlsChange}
-          isWASDActive={controlMode === 'keyboard'}
+          isWASDActive={false} // ปรับเป็น false เสมอเพื่อให้สามารถใช้เมาส์ได้ตลอดเวลา
           enabled={!isFormOpen}
+          onFollowModeChange={handleFollowModeChange}
         />
         
         <Camera position={cameraPosition} />
@@ -752,9 +778,15 @@ const MinimalScene: React.FC<MinimalSceneProps> = ({
         />
       </Canvas>
       
-      {showUI && !isUserMoving && (
+      {showUI && (
         <div className="absolute bottom-4 left-4 text-white text-opacity-70 text-sm">
-          <p>WASD: Move | Mouse Drag: Rotate | Scroll: Zoom</p>
+          <p>WASD: Move | Click + Mouse: Rotate | Right Click: Pan | Scroll: Zoom</p>
+          {isFollowingMouse && (
+            <p className="text-green-400">Mouse Follow Mode: Enabled (Click to disable) - Mouse will automatically rotate view</p>
+          )}
+          {!isFollowingMouse && (
+            <p>Mouse Follow Mode: Disabled (Click to enable) - Hold mouse button to rotate view</p>
+          )}
         </div>
       )}
     </div>
