@@ -156,14 +156,6 @@ const ProjectStar: React.FC<{
   
   return (
     <group>
-      {/* ออร่านีออนรอบดาว */}
-      <pointLight 
-        distance={isHedera ? 1 : 1} 
-        intensity={isHedera ? 0.4 : 0.5}
-        color={glowColor}
-        position={[project.x, project.y, project.z]}
-      />
-      
       {/* ดาวตัวหลัก */}
       <mesh
         ref={mesh}
@@ -177,38 +169,54 @@ const ProjectStar: React.FC<{
           <meshStandardMaterial 
             map={hederaTexture}
             transparent={true}
-            color={hederaTexture ? '#ffffff' : '#00ff7f'}
-            emissive={glowColor}
-            emissiveIntensity={hederaTexture ? 0.2 : 0.6}
+            emissive="#00ff7f"
+            emissiveIntensity={0.5}
           />
         ) : texture ? (
           // ดาวอื่นๆ ที่มี texture
           <meshStandardMaterial 
             map={texture}
             transparent={true}
-            color={color}
-            emissive={glowColor} 
-            emissiveIntensity={hovered ? 0.4 : 0.2}
+            emissiveIntensity={0}
           />
         ) : (
           // ดาวอื่นๆ ที่ไม่มี texture
           <meshStandardMaterial 
-            color={color} 
-            emissive={glowColor} 
-            emissiveIntensity={hovered ? 0.8 : 0.5} 
+            color="#ffffff"
+            emissiveIntensity={0} 
           />
         )}
       </mesh>
       
-      {/* เอฟเฟกต์ออร่าเพิ่มเติม - ใช้ sphere ที่ใหญ่กว่าและโปร่งใส */}
-      <mesh position={[project.x, project.y, project.z]}>
-        <sphereGeometry args={[size * 1.3, 32, 32]} />
-        <meshBasicMaterial 
-          color={glowColor} 
-          transparent={true} 
-          opacity={0.08} // ลดความทึบลงเพื่อให้ออร่าจางลง
+      {/* แสงสว่างสำหรับดาว Hedera */}
+      {isHedera && (
+        <pointLight
+          position={[project.x, project.y, project.z]}
+          distance={30}
+          intensity={1}
+          color="#00ff7f"
         />
-      </mesh>
+      )}
+      
+      {/* วงแหวนนีออนเฉพาะสำหรับดาว Hedera */}
+      {isHedera && (
+        <>
+          <mesh 
+            position={[project.x, project.y, project.z]}
+            rotation={[Math.PI / 4, 0, 0]}
+          >
+            <torusGeometry args={[size * 1.5, 0.5, 16, 100]} />
+            <meshBasicMaterial color="#00ff7f" transparent={true} opacity={0.7} />
+          </mesh>
+          <mesh 
+            position={[project.x, project.y, project.z]}
+            rotation={[0, Math.PI / 4, Math.PI / 2]}
+          >
+            <torusGeometry args={[size * 1.2, 0.3, 16, 100]} />
+            <meshBasicMaterial color="#00ff7f" transparent={true} opacity={0.5} />
+          </mesh>
+        </>
+      )}
     </group>
   );
 };

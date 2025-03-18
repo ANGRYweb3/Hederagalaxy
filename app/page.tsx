@@ -7,19 +7,6 @@ import ProjectModal from '../components/ProjectModal';
 import AddProjectForm from '../components/AddProjectForm';
 import { fetchProjects, Project } from '../lib/supabase';
 
-// ดาว Hedera ที่จะอยู่ตรงจุดศูนย์กลาง
-const HEDERA_STAR: Project = {
-  id: 0, // เริ่มที่ 0 ให้ Hedera เป็นหลัก ส่วนโปรเจคที่เพิ่มจะเริ่มที่ 1
-  name: 'Hedera',
-  description: 'Hedera is a decentralized public network where developers can build secure, fair applications with near real-time consensus.',
-  link: 'https://hedera.com',
-  image: '/hbar.png', // ใช้ texture จากไฟล์ภาพที่มีอยู่แล้ว
-  x: 0,
-  y: 0,
-  z: 0,
-  created_at: new Date().toISOString()
-};
-
 export default function Home() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -28,12 +15,22 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [hederaStar, setHederaStar] = useState<Project | null>(null);
 
   useEffect(() => {
     const loadProjects = async () => {
       try {
         const data = await fetchProjects();
-        setProjects(data);
+        
+        // แยกดาว Hedera ออกจากโปรเจคอื่นๆ
+        const hederaProject = data.find(p => p.id === 0);
+        const otherProjects = data.filter(p => p.id !== 0);
+        
+        if (hederaProject) {
+          setHederaStar(hederaProject);
+        }
+        
+        setProjects(otherProjects);
       } catch (err) {
         console.error('Error loading projects:', err);
         setError('Failed to load projects. Please try again later.');
@@ -60,6 +57,17 @@ export default function Home() {
     setProjects([newProject, ...projects]);
   };
 
+  // ถ้ายังไม่มีดาว Hedera ในฐานข้อมูล ใช้ค่า default
+  const defaultHederaStar: Project = {
+    id: 0,
+    name: 'Hedera',
+    description: 'Hedera is a decentralized public network...',
+    link: 'https://hedera.com',
+    image: '/hbar.png',
+    x: 0, y: 0, z: 0,
+    created_at: new Date().toISOString()
+  };
+
   return (
     <main className="relative min-h-screen bg-black">
       {loading ? (
@@ -76,7 +84,7 @@ export default function Home() {
             projects={projects} 
             onProjectClick={handleProjectClick} 
             showUI={true}
-            hederaStar={HEDERA_STAR}
+            hederaStar={hederaStar || defaultHederaStar}
             isFormOpen={showAddForm || showAbout}
           />
           
@@ -127,7 +135,6 @@ export default function Home() {
             <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black bg-opacity-80 border border-white p-6 rounded-xl max-w-md">
               <h2 className="text-2xl font-bold mb-4">About Hedera Galaxy</h2>
               <p className="mb-4">Hedera Galaxy is a platform that showcases projects and creators on the Hedera Network, visualized as a 3D galaxy. Users can add their projects or promote themselves, each appearing as a new star in the space.</p>
-              <p className="mb-4 text-yellow-300">Note: Refresh the page if star textures don't load (logo not visible)</p>
               <div className="flex justify-between items-center">
                 <a href="https://x.com/HederaGalaxy" target="_blank" rel="noopener noreferrer" className="text-white hover:text-gray-300 transition-colors">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
