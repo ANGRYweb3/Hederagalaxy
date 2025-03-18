@@ -27,4 +27,19 @@ body {
 * {
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+
+/* เพิ่ม animation สำหรับ fade-out effect */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.fade-out {
+  animation: fadeIn 0.5s ease forwards, fadeOut 0.5s ease 4.5s forwards;
 } 

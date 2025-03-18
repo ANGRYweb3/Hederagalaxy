@@ -3,7 +3,11 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Hedera Galaxy',
-  description: 'Explore Hedera projects in a 3D galaxy visualization',
+  description: 'Hedera Galaxy: A 3D platform on Hedera Network for projects & creators. Add yours as a new star in the galaxy!',
+  icons: {
+    icon: '/sitelogo.png',
+    apple: '/sitelogo.png',
+  }
 };
 
 export default function RootLayout({
